@@ -67,8 +67,8 @@ router.post('/login', async (req, res) => {
         // Send Cookie
         res.cookie('token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // true in production
-            sameSite: 'strict',
+            secure: true, // always true — required for sameSite: 'none'
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' needed for cross-origin (Vercel → Render)
             maxAge: 15 * 60 * 1000 // 15 minutes
         });
 

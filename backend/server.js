@@ -16,7 +16,8 @@ app.use(cors({
     origin: function (origin, callback) {
         const allowed = [
             'http://localhost:5173',
-            process.env.FRONTEND_URL, // Set this in Render env vars after Vercel deploy
+            'https://kodbank-pink.vercel.app',   // Vercel production frontend
+            process.env.FRONTEND_URL,             // Optional override via Render env var
         ].filter(Boolean);
         if (!origin || allowed.includes(origin)) callback(null, true);
         else callback(new Error('Not allowed by CORS'));
