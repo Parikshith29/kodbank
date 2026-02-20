@@ -1,0 +1,39 @@
+const express = require('express');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+require('dotenv').config();
+
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(express.json());
+app.use(cookieParser());
+app.use(cors({
+    origin: function (origin, callback) {
+        const allowed = [
+            'http://localhost:5173',
+            process.env.FRONTEND_URL, // Set this in Render env vars after Vercel deploy
+        ].filter(Boolean);
+        if (!origin || allowed.includes(origin)) callback(null, true);
+        else callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true
+}));
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+
+// Root route
+app.get('/', (req, res) => {
+    res.send('KodBank API is running');
+});
+
+// Start Server
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
