@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import PartyPopper from '../components/PartyPopper';
+import ChatBot from '../components/ChatBot';
+
 
 const pageStyle = {
     minHeight: '100vh', width: '100%', display: 'flex', alignItems: 'center',
@@ -96,6 +98,7 @@ const Dashboard = () => {
                     {loading ? 'Retrieving...' : balance !== null ? 'REFRESH BALANCE' : 'CHECK BALANCE'}
                 </button>
             </div>
+            <ChatBot />
         </div>
     );
 };
