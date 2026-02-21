@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import PartyPopper from '../components/PartyPopper';
@@ -104,6 +104,21 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(false);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const username = localStorage.getItem('username') || 'Agent';
+
+    // Intercept browser back button — show logout modal instead of navigating away
+    useEffect(() => {
+        // Push a dummy state so the first "back" hits our handler
+        window.history.pushState({ dashboardGuard: true }, '');
+
+        const handlePop = () => {
+            // Push the state back immediately to prevent navigation
+            window.history.pushState({ dashboardGuard: true }, '');
+            setShowLogoutModal(true);
+        };
+
+        window.addEventListener('popstate', handlePop);
+        return () => window.removeEventListener('popstate', handlePop);
+    }, []);
 
     const checkBalance = async () => {
         setLoading(true);
