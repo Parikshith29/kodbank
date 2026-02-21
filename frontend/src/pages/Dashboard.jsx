@@ -60,46 +60,48 @@ const Dashboard = () => {
     };
 
     return (
-        <div style={pageStyle}>
-            {showConfetti && <PartyPopper />}
-            <div style={cardStyle}>
-                <div style={glowStyle} />
+        <>
+            <div style={pageStyle}>
+                {showConfetti && <PartyPopper />}
+                <div style={cardStyle}>
+                    <div style={glowStyle} />
 
-                {/* Header row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px', position: 'relative' }}>
-                    <div>
-                        <h1 style={{ fontSize: '1.9rem', fontWeight: 900, letterSpacing: '-0.02em', margin: 0 }}>KODBANK</h1>
-                        <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3em', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>
-                            {username}
-                        </p>
+                    {/* Header row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px', position: 'relative' }}>
+                        <div>
+                            <h1 style={{ fontSize: '1.9rem', fontWeight: 900, letterSpacing: '-0.02em', margin: 0 }}>KODBANK</h1>
+                            <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3em', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>
+                                {username}
+                            </p>
+                        </div>
+                        <button onClick={handleLogout} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif', fontSize: '10px', letterSpacing: '0.15em', textTransform: 'uppercase', padding: '8px 14px', cursor: 'pointer' }}>
+                            Sign Out
+                        </button>
                     </div>
-                    <button onClick={handleLogout} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter,sans-serif', fontSize: '10px', letterSpacing: '0.15em', textTransform: 'uppercase', padding: '8px 14px', cursor: 'pointer' }}>
-                        Sign Out
+
+                    {/* Balance */}
+                    <div style={{ textAlign: 'center', marginBottom: '40px', position: 'relative' }}>
+                        <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3em', color: 'rgba(255,255,255,0.3)', marginBottom: '20px' }}>
+                            Account Balance
+                        </p>
+                        {balance !== null ? (
+                            <div style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff' }}>
+                                ₹{parseFloat(balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.03em', color: 'rgba(255,255,255,0.08)', userSelect: 'none' }}>
+                                ₹ ••••••
+                            </div>
+                        )}
+                    </div>
+
+                    <button onClick={checkBalance} disabled={loading} style={{ ...btnStyle, opacity: loading ? 0.6 : 1 }}>
+                        {loading ? 'Retrieving...' : balance !== null ? 'REFRESH BALANCE' : 'CHECK BALANCE'}
                     </button>
                 </div>
-
-                {/* Balance */}
-                <div style={{ textAlign: 'center', marginBottom: '40px', position: 'relative' }}>
-                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.3em', color: 'rgba(255,255,255,0.3)', marginBottom: '20px' }}>
-                        Account Balance
-                    </p>
-                    {balance !== null ? (
-                        <div style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff' }}>
-                            ₹{parseFloat(balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                        </div>
-                    ) : (
-                        <div style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.03em', color: 'rgba(255,255,255,0.08)', userSelect: 'none' }}>
-                            ₹ ••••••
-                        </div>
-                    )}
-                </div>
-
-                <button onClick={checkBalance} disabled={loading} style={{ ...btnStyle, opacity: loading ? 0.6 : 1 }}>
-                    {loading ? 'Retrieving...' : balance !== null ? 'REFRESH BALANCE' : 'CHECK BALANCE'}
-                </button>
             </div>
             <ChatBot />
-        </div>
+        </>
     );
 };
 
