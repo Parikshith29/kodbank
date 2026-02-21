@@ -23,13 +23,13 @@ router.post('/', verifyToken, async (req, res) => {
     }
 
     const HF_TOKEN = process.env.HF_API_TOKEN;
-    const HF_URL = process.env.HF_SPACE_URL;
 
-    if (!HF_TOKEN || !HF_URL) {
+    if (!HF_TOKEN) {
+        console.error('[Chat] HF_API_TOKEN is not set in environment variables.');
         return res.status(500).json({ error: 'Chatbot service not configured.' });
     }
 
-    // Build messages array (OpenAI-compatible format — works with TGI & many Gradio spaces)
+    // Build messages array (OpenAI-compatible format)
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         ...history.map(h => [
@@ -39,12 +39,16 @@ router.post('/', verifyToken, async (req, res) => {
         { role: 'user', content: message }
     ];
 
+    // Strategy 1: HF Serverless Inference API (always-on, no cold starts)
+    // Uses the model directly — no Space needed
+    const INFERENCE_URL = 'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions';
+
     try {
-        // Try OpenAI-compatible endpoint first (TGI / newer Gradio)
+        console.log('[Chat] Calling HF Inference API...');
         const response = await axios.post(
-            `${HF_URL}/v1/chat/completions`,
+            INFERENCE_URL,
             {
-                model: 'tgi',
+                model: 'Qwen/Qwen2.5-7B-Instruct',
                 messages,
                 max_tokens: 512,
                 temperature: 0.7,
@@ -55,39 +59,57 @@ router.post('/', verifyToken, async (req, res) => {
                     Authorization: `Bearer ${HF_TOKEN}`,
                     'Content-Type': 'application/json',
                 },
-                timeout: 60000,
+                timeout: 90000, // 90s — HF inference can be slow under load
             }
         );
 
         const reply = response.data?.choices?.[0]?.message?.content?.trim();
-        if (!reply) throw new Error('Empty response from AI');
+        if (!reply) {
+            console.error('[Chat] Empty response body:', JSON.stringify(response.data));
+            throw new Error('Empty response from inference API');
+        }
 
+        console.log('[Chat] Success');
         return res.json({ reply });
 
-    } catch (firstErr) {
-        // Fallback: try Gradio /api/predict endpoint
+    } catch (inferenceErr) {
+        // Log the real error to Render logs
+        console.error('[Chat] Inference API failed:', inferenceErr.response?.status, inferenceErr.response?.data || inferenceErr.message);
+
+        // Strategy 2: HF Space TGI endpoint fallback
+        const HF_URL = process.env.HF_SPACE_URL;
+        if (!HF_URL) {
+            return res.status(502).json({ error: 'The AI assistant is currently unavailable. Please try again shortly.' });
+        }
+
         try {
-            const gradioRes = await axios.post(
-                `${HF_URL}/api/predict`,
+            console.log('[Chat] Falling back to HF Space:', HF_URL);
+            const spaceRes = await axios.post(
+                `${HF_URL}/v1/chat/completions`,
                 {
-                    data: [message, history.map(h => [h.user, h.bot]), SYSTEM_PROMPT, 512, 0.7, 0.95]
+                    model: 'tgi',
+                    messages,
+                    max_tokens: 512,
+                    temperature: 0.7,
+                    stream: false,
                 },
                 {
                     headers: {
                         Authorization: `Bearer ${HF_TOKEN}`,
                         'Content-Type': 'application/json',
                     },
-                    timeout: 60000,
+                    timeout: 90000,
                 }
             );
 
-            const reply = gradioRes.data?.data?.[0]?.trim();
-            if (!reply) throw new Error('Empty Gradio response');
+            const reply = spaceRes.data?.choices?.[0]?.message?.content?.trim();
+            if (!reply) throw new Error('Empty Space response');
 
+            console.log('[Chat] Space fallback success');
             return res.json({ reply });
 
-        } catch (secondErr) {
-            console.error('Chat API error:', secondErr.message);
+        } catch (spaceErr) {
+            console.error('[Chat] Space fallback also failed:', spaceErr.response?.status, spaceErr.response?.data || spaceErr.message);
             return res.status(502).json({
                 error: 'The AI assistant is currently unavailable. Please try again shortly.',
             });
