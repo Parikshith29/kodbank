@@ -1,8 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import Landing from './pages/Landing';
-import Register from './pages/Register';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import PageTransition from './components/PageTransition';
 
@@ -10,10 +9,13 @@ const AnimatedRoutes = () => {
   const location = useLocation();
   return (
     <Routes location={location} key={location.pathname}>
-      <Route path="/" element={<PageTransition><Landing /></PageTransition>} />
+      {/* / goes directly to the login page */}
+      <Route path="/" element={<PageTransition><Login /></PageTransition>} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/register" element={<PageTransition><Register /></PageTransition>} />
-      <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
       <Route path="/dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
+      {/* catch-all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
