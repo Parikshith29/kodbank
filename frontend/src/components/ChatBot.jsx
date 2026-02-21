@@ -3,29 +3,59 @@ import api from '../api/axios';
 
 const CHIPS = ['Check my balance', 'How to transfer funds?', 'Report lost card'];
 
-/* Simple inline markdown renderer — handles **bold**, *italic*, line breaks, bullet points */
-const renderText = (text) => {
-    const lines = text.split('\n').filter(l => l !== undefined);
-    return lines.map((line, i) => {
-        const isBullet = line.trim().startsWith('- ') || line.trim().startsWith('• ');
-        const content = isBullet ? line.trim().substring(2) : line;
+/* ── Markdown renderer — handles bold, italic, numbered lists, bullets, line breaks ── */
+const Msg = ({ text }) => {
+    const lines = text.split('\n');
+    const out = [];
+    let i = 0;
 
-        // Bold + italic inline
-        const parts = content.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
-        const formatted = parts.map((p, j) => {
-            if (p.startsWith('**') && p.endsWith('**')) return <strong key={j}>{p.slice(2, -2)}</strong>;
-            if (p.startsWith('*') && p.endsWith('*')) return <em key={j}>{p.slice(1, -1)}</em>;
-            return p;
-        });
+    while (i < lines.length) {
+        const raw = lines[i];
+        const trimmed = raw.trim();
 
-        return (
-            <span key={i} style={{ display: isBullet ? 'flex' : 'block', gap: isBullet ? '6px' : 0, marginBottom: lines.length > 1 ? '4px' : 0 }}>
-                {isBullet && <span style={{ color: 'rgba(167,139,250,0.7)', flexShrink: 0 }}>·</span>}
-                <span>{formatted}</span>
-            </span>
-        );
-    });
+        // Numbered list item  e.g. "1. **Title**: body"
+        const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+        if (numMatch) {
+            const content = numMatch[2];
+            out.push(
+                <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(167,139,250,0.7)', minWidth: '16px', paddingTop: '1px', flexShrink: 0 }}>{numMatch[1]}.</span>
+                    <span style={{ lineHeight: 1.55 }}>{inlineFormat(content)}</span>
+                </div>
+            );
+        }
+        // Bullet list
+        else if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+            const content = trimmed.replace(/^[-•]\s+/, '');
+            out.push(
+                <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
+                    <span style={{ color: 'rgba(167,139,250,0.7)', flexShrink: 0, paddingTop: '1px' }}>·</span>
+                    <span style={{ lineHeight: 1.55 }}>{inlineFormat(content)}</span>
+                </div>
+            );
+        }
+        // Empty line → spacing
+        else if (trimmed === '') {
+            if (i > 0 && i < lines.length - 1) out.push(<div key={i} style={{ height: '6px' }} />);
+        }
+        // Normal paragraph
+        else {
+            out.push(<p key={i} style={{ margin: '0 0 4px', lineHeight: 1.6 }}>{inlineFormat(trimmed)}</p>);
+        }
+        i++;
+    }
+    return <div style={{ fontSize: '0.82rem', fontFamily: 'Inter,sans-serif', color: '#fff' }}>{out}</div>;
 };
+
+function inlineFormat(text) {
+    // Split on **bold** and *italic*
+    const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+    return parts.map((p, i) => {
+        if (p.startsWith('**') && p.endsWith('**')) return <strong key={i} style={{ color: '#d4b8ff', fontWeight: 700 }}>{p.slice(2, -2)}</strong>;
+        if (p.startsWith('*') && p.endsWith('*')) return <em key={i} style={{ color: 'rgba(255,255,255,0.7)' }}>{p.slice(1, -1)}</em>;
+        return p;
+    });
+}
 
 const ChatBot = () => {
     const [open, setOpen] = useState(false);
@@ -45,7 +75,8 @@ const ChatBot = () => {
     const buildHistory = (msgs) => {
         const hist = [];
         for (let i = 0; i < msgs.length - 1; i++) {
-            if (msgs[i].role === 'user' && msgs[i + 1]?.role === 'bot') hist.push({ user: msgs[i].text, bot: msgs[i + 1].text });
+            if (msgs[i].role === 'user' && msgs[i + 1]?.role === 'bot')
+                hist.push({ user: msgs[i].text, bot: msgs[i + 1].text });
         }
         return hist;
     };
@@ -54,17 +85,17 @@ const ChatBot = () => {
         const trimmed = (text || input).trim();
         if (!trimmed || loading) return;
         const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const newMessages = [...messages, { role: 'user', text: trimmed, ts }];
-        setMessages(newMessages);
+        const newMsgs = [...messages, { role: 'user', text: trimmed, ts }];
+        setMessages(newMsgs);
         setInput('');
         setLoading(true);
         try {
-            const res = await api.post('/chat', { message: trimmed, history: buildHistory(newMessages) });
+            const res = await api.post('/chat', { message: trimmed, history: buildHistory(newMsgs) });
             const replyTs = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             setMessages(prev => [...prev, { role: 'bot', text: res.data.reply, ts: replyTs }]);
         } catch (err) {
-            const errMsg = err.response?.data?.error || 'Something went wrong. Please try again.';
-            setMessages(prev => [...prev, { role: 'bot', text: errMsg, ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isError: true }]);
+            const msg = err.response?.data?.error || 'Something went wrong. Please try again.';
+            setMessages(prev => [...prev, { role: 'bot', text: msg, ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isError: true }]);
         } finally { setLoading(false); }
     };
 
@@ -72,9 +103,16 @@ const ChatBot = () => {
 
     return (
         <>
-            {/* Bubble */}
-            <button onClick={() => setOpen(o => !o)}
-                style={{ position: 'fixed', bottom: '28px', right: '28px', zIndex: 1000, width: '52px', height: '52px', borderRadius: '50%', border: 'none', background: open ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #7c3aed, #e11d48)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: open ? '0 4px 16px rgba(0,0,0,0.4)' : '0 6px 28px rgba(124,58,237,0.55)', border: open ? '1px solid rgba(255,255,255,0.1)' : 'none', transition: 'all 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
+            {/* ── Bubble ──────────────────────────────── */}
+            <button onClick={() => setOpen(o => !o)} style={{
+                position: 'fixed', bottom: '28px', right: '28px', zIndex: 1000,
+                width: '52px', height: '52px', borderRadius: '50%', border: 'none',
+                background: open ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #7c3aed, #e11d48)',
+                color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: open ? '0 4px 16px rgba(0,0,0,0.4)' : '0 6px 28px rgba(124,58,237,0.55)',
+                outline: open ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                transition: 'all 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+            }}>
                 {open
                     ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                     : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
@@ -82,18 +120,30 @@ const ChatBot = () => {
                 {!open && <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(124,58,237,0.35)', animation: 'chatPulse 2s ease-out infinite' }} />}
             </button>
 
-            {/* Panel */}
-            <div style={{ position: 'fixed', bottom: '90px', right: '28px', zIndex: 999, width: '380px', maxWidth: 'calc(100vw - 40px)', background: 'rgba(12,8,24,0.96)', backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px', boxShadow: '0 24px 64px -12px rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column', overflow: 'hidden', opacity: panelMounted ? 1 : 0, transform: panelMounted ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.98)', pointerEvents: open ? 'all' : 'none', transition: 'opacity 0.25s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
+            {/* ── Panel ───────────────────────────────── */}
+            <div style={{
+                position: 'fixed', bottom: '90px', right: '28px', zIndex: 999,
+                width: '400px', maxWidth: 'calc(100vw - 40px)',
+                background: 'rgba(10,7,22,0.97)', backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)',
+                border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px',
+                boxShadow: '0 24px 64px -12px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)',
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                opacity: panelMounted ? 1 : 0,
+                transform: panelMounted ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.98)',
+                pointerEvents: open ? 'all' : 'none',
+                transition: 'opacity 0.25s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+                maxHeight: '80vh',
+            }}>
 
                 {/* Header */}
-                <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(124,58,237,0.08)' }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(124,58,237,0.06)', flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg, #7c3aed, #e11d48)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#fff', flexShrink: 0, fontFamily: 'Inter,sans-serif' }}>K</div>
+                        <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg, #7c3aed, #e11d48)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#fff', fontFamily: 'Inter,sans-serif', flexShrink: 0 }}>K</div>
                         <div>
                             <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff', fontFamily: 'Inter,sans-serif' }}>KodBank AI</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-                                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter,sans-serif' }}>Online</span>
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 4px rgba(34,197,94,0.8)' }} />
+                                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter,sans-serif' }}>Online · Banking Assistant</span>
                             </div>
                         </div>
                     </div>
@@ -102,33 +152,45 @@ const ChatBot = () => {
                     </button>
                 </div>
 
-                {/* Messages */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px' }}>
+                {/* Messages — scrollable */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: '12px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(124,58,237,0.3) transparent' }}>
                     {messages.map((msg, i) => (
-                        <div key={i} style={{ display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: '8px' }}>
-                            {msg.role === 'bot' && (
-                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, #7c3aed, #e11d48)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 800, color: '#fff', flexShrink: 0, fontFamily: 'Inter,sans-serif' }}>K</div>
-                            )}
-                            <div style={{ maxWidth: '82%' }}>
+                        <div key={i} style={{ display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: '8px' }}>
+                            {/* Avatar */}
+                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: msg.role === 'user' ? 'linear-gradient(135deg, rgba(124,58,237,0.6), rgba(225,29,72,0.5))' : 'linear-gradient(135deg, #7c3aed, #e11d48)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 800, color: '#fff', flexShrink: 0, fontFamily: 'Inter,sans-serif', marginTop: '2px' }}>
+                                {msg.role === 'user' ? 'U' : 'K'}
+                            </div>
+                            <div style={{ maxWidth: '85%' }}>
+                                {/* Bubble */}
                                 <div style={{
                                     padding: '10px 13px',
-                                    borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                                    background: msg.role === 'user' ? 'linear-gradient(135deg, rgba(124,58,237,0.75), rgba(225,29,72,0.65))' : msg.isError ? 'rgba(225,29,72,0.09)' : 'rgba(255,255,255,0.06)',
+                                    borderRadius: msg.role === 'user' ? '4px 14px 14px 14px' : '14px 4px 14px 14px',
+                                    background: msg.role === 'user'
+                                        ? 'linear-gradient(135deg, rgba(124,58,237,0.7), rgba(225,29,72,0.6))'
+                                        : msg.isError ? 'rgba(225,29,72,0.1)' : 'rgba(255,255,255,0.06)',
                                     border: msg.role === 'bot' ? `1px solid ${msg.isError ? 'rgba(225,29,72,0.2)' : 'rgba(255,255,255,0.07)'}` : 'none',
-                                    fontSize: '0.82rem', lineHeight: 1.6, color: '#fff', fontFamily: 'Inter,sans-serif', letterSpacing: '0.01em',
+                                    wordBreak: 'break-word',
                                 }}>
-                                    {msg.role === 'bot' ? renderText(msg.text) : msg.text}
+                                    {msg.role === 'bot'
+                                        ? <Msg text={msg.text} />
+                                        : <span style={{ fontSize: '0.82rem', color: '#fff', fontFamily: 'Inter,sans-serif', lineHeight: 1.55 }}>{msg.text}</span>
+                                    }
                                 </div>
-                                {msg.ts && <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.18)', marginTop: '3px', textAlign: msg.role === 'user' ? 'right' : 'left', fontFamily: 'Inter,sans-serif' }}>{msg.ts}</div>}
+                                {msg.ts && (
+                                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.18)', marginTop: '3px', textAlign: msg.role === 'user' ? 'left' : 'left', fontFamily: 'Inter,sans-serif', paddingLeft: '2px' }}>
+                                        {msg.ts}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
 
+                    {/* Typing indicator */}
                     {loading && (
-                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, #7c3aed, #e11d48)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 800, color: '#fff', flexShrink: 0, fontFamily: 'Inter,sans-serif' }}>K</div>
-                            <div style={{ padding: '10px 14px', borderRadius: '14px 14px 14px 4px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                {[0, 1, 2].map(i => <span key={i} style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'rgba(167,139,250,0.7)', display: 'inline-block', animation: `chatDot 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'linear-gradient(135deg, #7c3aed, #e11d48)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 800, color: '#fff', fontFamily: 'Inter,sans-serif', flexShrink: 0 }}>K</div>
+                            <div style={{ padding: '11px 14px', borderRadius: '14px 4px 14px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                {[0, 1, 2].map(n => <span key={n} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'rgba(167,139,250,0.7)', display: 'inline-block', animation: `chatDot 1.2s ease-in-out ${n * 0.2}s infinite` }} />)}
                             </div>
                         </div>
                     )}
@@ -137,19 +199,19 @@ const ChatBot = () => {
 
                 {/* Quick chips */}
                 {messages.length === 1 && (
-                    <div style={{ padding: '0 14px 10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <div style={{ padding: '4px 14px 8px', display: 'flex', gap: '6px', flexWrap: 'wrap', flexShrink: 0 }}>
                         {CHIPS.map(chip => (
                             <button key={chip} onClick={() => sendMessage(chip)}
-                                style={{ padding: '5px 11px', borderRadius: '999px', border: '1px solid rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.08)', color: 'rgba(190,170,255,0.85)', fontSize: '10px', cursor: 'pointer', fontFamily: 'Inter,sans-serif', letterSpacing: '0.02em', transition: 'all 0.15s', whiteSpace: 'nowrap' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.2)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.08)'; }}
+                                style={{ padding: '5px 11px', borderRadius: '999px', border: '1px solid rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.08)', color: 'rgba(190,170,255,0.85)', fontSize: '10px', cursor: 'pointer', fontFamily: 'Inter,sans-serif', whiteSpace: 'nowrap', transition: 'all 0.15s' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(124,58,237,0.2)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(124,58,237,0.08)'}
                             >{chip}</button>
                         ))}
                     </div>
                 )}
 
-                {/* Input */}
-                <div style={{ padding: '10px 12px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {/* Input row */}
+                <div style={{ padding: '10px 12px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
                     <input type="text" placeholder="Ask anything…" value={input}
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
@@ -168,8 +230,8 @@ const ChatBot = () => {
             </div>
 
             <style>{`
-                @keyframes chatPulse { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.65); opacity: 0; } }
-                @keyframes chatDot { 0%,80%,100% { transform: scale(0.7); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+                @keyframes chatPulse { 0% { transform:scale(1); opacity:0.6; } 100% { transform:scale(1.65); opacity:0; } }
+                @keyframes chatDot { 0%,80%,100% { transform:scale(0.7); opacity:0.4; } 40% { transform:scale(1); opacity:1; } }
             `}</style>
         </>
     );
