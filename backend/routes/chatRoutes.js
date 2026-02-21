@@ -39,10 +39,8 @@ router.post('/', verifyToken, async (req, res) => {
         { role: 'user', content: message }
     ];
 
-    // Strategy 1: HF Serverless Inference API (always-on, no cold starts)
-    // Uses the model directly — no Space needed
-    // New HF Inference Router (api-inference.huggingface.co was deprecated Apr 2025)
-    const INFERENCE_URL = 'https://router.huggingface.co/hf-inference/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions';
+    // Correct HF Inference Router URL (as of 2025)
+    const INFERENCE_URL = 'https://router.huggingface.co/v1/chat/completions';
 
     try {
         console.log('[Chat] Calling HF Inference API...');
