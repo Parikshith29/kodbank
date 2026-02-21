@@ -41,7 +41,8 @@ router.post('/', verifyToken, async (req, res) => {
 
     // Strategy 1: HF Serverless Inference API (always-on, no cold starts)
     // Uses the model directly — no Space needed
-    const INFERENCE_URL = 'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions';
+    // New HF Inference Router (api-inference.huggingface.co was deprecated Apr 2025)
+    const INFERENCE_URL = 'https://router.huggingface.co/hf-inference/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions';
 
     try {
         console.log('[Chat] Calling HF Inference API...');
@@ -83,15 +84,13 @@ router.post('/', verifyToken, async (req, res) => {
         }
 
         try {
-            console.log('[Chat] Falling back to HF Space:', HF_URL);
+            // Gradio Space fallback — uses /api/predict with chat_message format
+            console.log('[Chat] Falling back to HF Gradio Space:', HF_URL);
             const spaceRes = await axios.post(
-                `${HF_URL}/v1/chat/completions`,
+                `${HF_URL}/api/predict`,
                 {
-                    model: 'tgi',
-                    messages,
-                    max_tokens: 512,
-                    temperature: 0.7,
-                    stream: false,
+                    fn_index: 0,
+                    data: [message]
                 },
                 {
                     headers: {
@@ -102,7 +101,9 @@ router.post('/', verifyToken, async (req, res) => {
                 }
             );
 
-            const reply = spaceRes.data?.choices?.[0]?.message?.content?.trim();
+            // Gradio returns data as an array
+            const raw = spaceRes.data?.data;
+            const reply = (Array.isArray(raw) ? raw[0] : raw)?.toString()?.trim();
             if (!reply) throw new Error('Empty Space response');
 
             console.log('[Chat] Space fallback success');
